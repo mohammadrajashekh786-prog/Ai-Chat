@@ -100,9 +100,8 @@ function ask(text){
     body: JSON.stringify({
       systemInstruction: {parts: [{text: 'You are Chat, Raja\'s voice assistant. Raja is riding. Reply in ONE short sentence. Format: simple Hindi (Devanagari), then |||, then English. Nothing else.'}]},
       contents: [{role: 'user', parts: [{text: text}]}],
-      generationConfig: {maxOutputTokens: 120, thinkingConfig: {thinkingBudget: 0}}
-    })
-  })
+      generationConfig: {maxOutputTokens: 300}
+  })  })
   .then(function(r){ return r.json(); })
   .then(function(d){
     if(d.error){ add('a', 'Chat: ' + d.error.message); st.textContent = 'Error'; return; }
