@@ -93,26 +93,30 @@ function ask(text){
   KEY = document.getElementById('key').value.trim();
   if(!KEY){ add('a', 'Chat: Please enter the Gemini key first'); speak('पहले Gemini की key डालिए'); return; }
   st.textContent = 'Thinking...';
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + KEY, {
+  var t0 = Date.now();
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=' + KEY, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
-      systemInstruction: {parts: [{text: 'You are Chat, Raja\'s personal voice assistant. Raja is riding, so keep replies very short: two sentences at most. Always reply in exactly this format: first the reply in simple Hindi (Devanagari script), then the separator ||| , then the same reply in English. Nothing else.'}]},
-      contents: [{role: 'user', parts: [{text: text}]}]
+      systemInstruction: {parts: [{text: 'You are Chat, Raja\'s voice assistant. Raja is riding. Reply in ONE short sentence. Format: simple Hindi (Devanagari), then |||, then English. Nothing else.'}]},
+      contents: [{role: 'user', parts: [{text: text}]}],
+      generationConfig: {maxOutputTokens: 120, thinkingConfig: {thinkingBudget: 0}}
     })
   })
   .then(function(r){ return r.json(); })
   .then(function(d){
-    var a = d.candidates && d.candidates[0].content.parts[0].text;
-    if(!a){ add('a', 'Chat: No answer received. Please check your key.'); speak('जवाब नहीं मिला, key जाँच लीजिए'); return; }
+    if(d.error){ add('a', 'Chat: ' + d.error.message); st.textContent = 'Error'; return; }
+    var a = d.candidates && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0].text;
+    if(!a){ add('a', 'Chat: No answer received'); return; }
     var parts = a.split('|||');
     var hindi = parts[0].trim();
     var english = (parts[1] || parts[0]).trim();
-    add('a', 'Chat: ' + english);   // you read English
+    var secs = ((Date.now() - t0) / 1000).toFixed(1);
+    add('a', 'Chat (' + secs + 's): ' + english);
     st.textContent = 'Speaking...';
-    speak(hindi, again);               // Chat speaks Hindi
+    speak(hindi, again);
   })
-  .catch(function(){ add('a', 'Chat: Internet problem'); speak('इंटरनेट में गड़बड़ है'); });
+  .catch(function(e){ add('a', 'Chat: ' + e.message); });
 }
 </script>
 </body>
