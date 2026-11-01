@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat</title>
+<style>
+body{margin:0;background:#0b1020;color:#e8ecff;font-family:sans-serif;text-align:center;padding:16px}
+h1{margin:8px 0}
+#mic{width:150px;height:150px;border-radius:50%;border:0;font-size:56px;background:#2b6cff;color:#fff;margin:24px 0}
+#mic.on{background:#e63946}
+#st{min-height:24px;color:#9fb0ff}
+#log{text-align:left;font-size:16px;line-height:1.5}
+.u{color:#ffd166}.a{color:#8be9a8}
+label{display:block;margin-top:12px;font-size:14px}
+input{width:90%;padding:8px;border-radius:8px;border:0}
+</style>
+</head>
+<body>
+<h1>Chat</h1>
+<div id="st">Tap the mic and speak in Hindi</div>
+<button id="mic" onclick="toggle()">🎤</button>
+<div id="log"></div>
+
+<label>Gemini API Key (free):</label>
+<input id="key" placeholder="Paste your key here" onchange="localStorage.setItem('k',this.value)">
+<label><input type="checkbox" id="loop" checked style="width:auto"> Keep listening after each reply (bike mode)</label>
+
+<script>
+var KEY = localStorage.getItem('k') || '';
+document.getElementById('key').value = KEY;
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var rec, listening = false;
+var st = document.getElementById('st'), log = document.getElementById('log'), mic = document.getElementById('mic');
+
+function add(cls, t){ log.innerHTML = '<div class="'+cls+'">'+t+'</div>' + log.innerHTML; }
+
+// Chat speaks in Hindi
+function speak(t, done){
+  speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance(t);
+  u.lang = 'hi-IN';
+  u.onend = function(){ if(done) done(); };
+  speechSynthesis.speak(u);
+}
+
+function toggle(){
+  if(!SR){ st.textContent = 'Speech recognition not available here. Open in Chrome.'; return; }
+  if(listening){ rec.stop(); return; }
+  rec = new SR();
+  rec.lang = 'hi-IN';   // you speak in Hindi
+  rec.onstart = function(){ listening = true; mic.className = 'on'; st.textContent = 'Listening...'; };
+  rec.onend = function(){ listening = false; mic.className = ''; };
+  rec.onerror = function(e){ st.textContent = 'Error: ' + e.error; };
+  rec.onresult = function(e){ handle(e.results[0][0].transcript); };
+  rec.start();
+}
+
+function again(){
+  if(document.getElementById('loop').checked) setTimeout(toggle, 600);
+}
+
+function handle(text){
+  add('u', 'You: ' + text);
+  var t = text.toLowerCase();
+  var digits = text.replace(/[^0-9]/g, '');
+
+  if((t.indexOf('call') > -1 || t.indexOf('कॉल') > -1 || t.indexOf('फोन') > -1) && digits.length >= 8){
+    add('a', 'Chat: Calling now');
+    speak('कॉल लगा रहा हूँ');
+    location.href = 'tel:' + digits;
+    return;
+  }
+  if(t.indexOf('traffic') > -1 || t.indexOf('ट्रैफिक') > -1 || t.indexOf('जाम') > -1){
+    add('a', 'Chat: Opening the map with traffic');
+    speak('मैप खोल रहा हूँ, ट्रैफिक के साथ', function(){
+      location.href = 'https://www.google.com/maps/@?api=1&map_action=map&layer=traffic';
+    });
+    return;
+  }
+  var m = text.match(/(?:navigate to|route to|रास्ता|नेविगेट)\s*(.*)/i);
+  if(m && m[1]){
+    add('a', 'Chat: Opening directions');
+    speak('रास्ता खोल रहा हूँ', function(){
+      location.href = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(m[1]);
+    });
+    return;
+  }
+  ask(text);
+}
+
+function ask(text){
+  KEY = document.getElementById('key').value.trim();
+  if(!KEY){ add('a', 'Chat: Please enter the Gemini key first'); speak('पहले Gemini की key डालिए'); return; }
+  st.textContent = 'Thinking...';
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + KEY, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      systemInstruction: {parts: [{text: 'You are Chat, Raja\'s personal voice assistant. Raja is riding, so keep replies very short: two sentences at most. Always reply in exactly this format: first the reply in simple Hindi (Devanagari script), then the separator ||| , then the same reply in English. Nothing else.'}]},
+      contents: [{role: 'user', parts: [{text: text}]}]
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    var a = d.candidates && d.candidates[0].content.parts[0].text;
+    if(!a){ add('a', 'Chat: No answer received. Please check your key.'); speak('जवाब नहीं मिला, key जाँच लीजिए'); return; }
+    var parts = a.split('|||');
+    var hindi = parts[0].trim();
+    var english = (parts[1] || parts[0]).trim();
+    add('a', 'Chat: ' + english);   // you read English
+    st.textContent = 'Speaking...';
+    speak(hindi, again);               // Chat speaks Hindi
+  })
+  .catch(function(){ add('a', 'Chat: Internet problem'); speak('इंटरनेट में गड़बड़ है'); });
+}
+</script>
+</body>
+</html>
