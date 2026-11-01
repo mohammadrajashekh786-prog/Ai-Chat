@@ -94,29 +94,35 @@ function ask(text){
   if(!KEY){ add('a', 'Chat: Please enter the Gemini key first'); speak('पहले Gemini की key डालिए'); return; }
   st.textContent = 'Thinking...';
   var t0 = Date.now();
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=' + KEY, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      systemInstruction: {parts: [{text: 'You are Chat, Raja\'s voice assistant. Raja is riding. Reply in ONE short sentence. Format: simple Hindi (Devanagari), then |||, then English. Nothing else.'}]},
-      contents: [{role: 'user', parts: [{text: text}]}],
-      generationConfig: {maxOutputTokens: 300}
-  })  })
-  .then(function(r){ return r.json(); })
-  .then(function(d){
-    if(d.error){ add('a', 'Chat: ' + d.error.message); st.textContent = 'Error'; return; }
-    var a = d.candidates && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0].text;
-    if(!a){ add('a', 'Chat: No answer received'); return; }
-    var parts = a.split('|||');
-    var hindi = parts[0].trim();
-    var english = (parts[1] || parts[0]).trim();
-    var secs = ((Date.now() - t0) / 1000).toFixed(1);
-    add('a', 'Chat (' + secs + 's): ' + english);
-    st.textContent = 'Speaking...';
-    speak(hindi, again);
-  })
-  .catch(function(e){ add('a', 'Chat: ' + e.message); });
+  var models = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
+  var prompt = 'You are Chat, Raja\'s voice assistant. Raja is riding. Reply in ONE short sentence. Format: simple Hindi (Devanagari), then |||, then English. Nothing else. Raja says: ' + text;
+  function tryModel(i){
+    fetch('https://generativelanguage.googleapis.com/v1beta/models/' + models[i] + ':generateContent', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'x-goog-api-key': KEY},
+      body: JSON.stringify({contents: [{role: 'user', parts: [{text: prompt}]}]})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.error){
+        if(i < models.length - 1){ tryModel(i + 1); return; }
+        add('a', 'Chat: ' + d.error.message); st.textContent = 'Error'; return;
+      }
+      var a = d.candidates && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0].text;
+      if(!a){ add('a', 'Chat: No answer received'); return; }
+      var parts = a.split('|||');
+      var hindi = parts[0].trim();
+      var english = (parts[1] || parts[0]).trim();
+      var secs = ((Date.now() - t0) / 1000).toFixed(1);
+      add('a', 'Chat (' + secs + 's, ' + models[i] + '): ' + english);
+      st.textContent = 'Speaking...';
+      speak(hindi, again);
+    })
+    .catch(function(e){ add('a', 'Chat: ' + e.message); });
+  }
+  tryModel(0);
 }
+  })
 </script>
 </body>
 </html>
